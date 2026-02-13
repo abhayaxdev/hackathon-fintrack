@@ -1,11 +1,14 @@
+# Custom Admin Template
+django-jazzmin==3.0.2
+
 # Django
 Django==5.2.10
 
 # DRF
 djangorestframework==3.16.1
 
-# Custom Admin Template
-django-jazzmin==3.0.2
+# Virtual Env
+django-environ==0.12.0
 
 # Postgres
 psycopg2-binary==2.9.11
