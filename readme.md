@@ -326,7 +326,7 @@ fintrack/
 
 ## Implementation Notes
 
-- [`swagger_implementation_fixes.md`](swagger_implementation_fixes.md) — Swagger/drf-spectacular fixes
-- [`core_viewset_implementation.md`](core_viewset_implementation.md) — Core viewset design decisions
-- [`recurring_payments_implementation.md`](recurring_payments_implementation.md) — Recurring payments design decisions
-- [`insight_engine_implementation.md`](insight_engine_implementation.md) — Insight Engine design decisions
+- [`implementations/swagger_implementation_fixes.md`](implementations/swagger_implementation_fixes.md) — Swagger/drf-spectacular fixes
+- [`implementations/core_viewset_implementation.md`](implementations/core_viewset_implementation.md) — Core viewset design decisions
+- [`implementations/recurring_payments_implementation.md`](implementations/recurring_payments_implementation.md) — Recurring payments design decisions
+- [`implementations/insight_engine_implementation.md`](implementations/insight_engine_implementation.md) — Insight Engine design decisions
