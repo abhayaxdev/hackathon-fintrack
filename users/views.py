@@ -1,12 +1,19 @@
 import logging
 
-from rest_framework import generics, permissions, status
+from rest_framework import generics, permissions, serializers, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError, InvalidToken
+from drf_spectacular.utils import extend_schema, inline_serializer
 
 from .serializers import RegisterSerializer, UserProfileSerializer
+
+logger = logging.getLogger(__name__)
+
+
+class _LogoutRequestSerializer(serializers.Serializer):
+    refresh = serializers.CharField(help_text='Refresh token to blacklist.')
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +72,7 @@ class RefreshTokenView(TokenRefreshView):
 class LogoutView(generics.GenericAPIView):
     """POST /api/auth/logout/ — blacklist the refresh token to invalidate the session."""
     permission_classes = (permissions.IsAuthenticated,)
+    serializer_class = _LogoutRequestSerializer
 
     def post(self, request, *args, **kwargs):
         refresh_token = request.data.get('refresh')

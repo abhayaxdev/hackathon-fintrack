@@ -4,6 +4,8 @@ from django.db.models import Sum, Q
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
+from drf_spectacular.types import OpenApiTypes
 
 from .models import Currency, Category, Transaction, Budget
 from .serializers import (
@@ -15,30 +17,45 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
+# Common query params shared by transaction list and summary
+_TRANSACTION_FILTERS = [
+    OpenApiParameter('date_from', OpenApiTypes.DATE, description='Filter from date (YYYY-MM-DD)'),
+    OpenApiParameter('date_to', OpenApiTypes.DATE, description='Filter to date (YYYY-MM-DD)'),
+    OpenApiParameter('transaction_type', OpenApiTypes.STR, enum=['income', 'expense'], description='Filter by type'),
+    OpenApiParameter('category', OpenApiTypes.INT, description='Filter by category ID'),
+]
+
+
+@extend_schema_view(
+    list=extend_schema(summary='List all currencies'),
+    retrieve=extend_schema(summary='Retrieve a currency'),
+)
+
 
 class CurrencyViewSet(viewsets.ReadOnlyModelViewSet):
-    """
-    GET /api/currencies/       — list all currencies
-    GET /api/currencies/{id}/  — retrieve single currency
-    No authentication required.
-    """
     queryset = Currency.objects.all()
     serializer_class = CurrencySerializer
     permission_classes = (permissions.AllowAny,)
 
 
+@extend_schema_view(
+    list=extend_schema(summary='List categories (system defaults + own)'),
+    create=extend_schema(summary='Create a custom category'),
+    retrieve=extend_schema(summary='Retrieve a category'),
+    update=extend_schema(summary='Update own category'),
+    partial_update=extend_schema(summary='Partially update own category'),
+    destroy=extend_schema(summary='Delete own category'),
+)
+
+
 class CategoryViewSet(viewsets.ModelViewSet):
-    """
-    GET    /api/categories/       — list system defaults + user's own categories
-    POST   /api/categories/       — create a custom category
-    GET    /api/categories/{id}/  — retrieve
-    PATCH  /api/categories/{id}/  — update own category
-    DELETE /api/categories/{id}/  — delete own category (system defaults blocked)
-    """
     serializer_class = CategorySerializer
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
+        # Guard for schema generation (no request context available)
+        if getattr(self, 'swagger_fake_view', False):
+            return Category.objects.none()
         # Return system-wide defaults (user=None) + categories owned by the current user
         return Category.objects.filter(
             Q(user__isnull=True) | Q(user=self.request.user)
@@ -88,25 +105,21 @@ class CategoryViewSet(viewsets.ModelViewSet):
         return super().update(request, *args, **kwargs)
 
 
+@extend_schema_view(
+    list=extend_schema(summary='List own transactions', parameters=_TRANSACTION_FILTERS),
+    create=extend_schema(summary='Create a transaction'),
+    retrieve=extend_schema(summary='Retrieve a transaction'),
+    update=extend_schema(summary='Update a transaction'),
+    partial_update=extend_schema(summary='Partially update a transaction'),
+    destroy=extend_schema(summary='Delete a transaction'),
+)
 class TransactionViewSet(viewsets.ModelViewSet):
-    """
-    GET    /api/transactions/            — list own transactions (supports filters)
-    POST   /api/transactions/            — create transaction
-    GET    /api/transactions/{id}/       — retrieve
-    PATCH  /api/transactions/{id}/       — update
-    DELETE /api/transactions/{id}/       — delete
-    GET    /api/transactions/summary/    — aggregated income/expense totals
-    
-    Query params for list & summary:
-      - date_from     (YYYY-MM-DD)
-      - date_to       (YYYY-MM-DD)
-      - transaction_type  (income | expense)
-      - category      (category id)
-    """
     serializer_class = TransactionSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Transaction.objects.none()
         qs = Transaction.objects.filter(user=self.request.user).select_related(
             'category', 'currency'
         )
@@ -136,6 +149,10 @@ class TransactionViewSet(viewsets.ModelViewSet):
             f"| user='{self.request.user.username}' (id={self.request.user.id})"
         )
 
+    @extend_schema(
+        summary='Transaction summary — totals for income, expense and net',
+        parameters=_TRANSACTION_FILTERS,
+    )
     @action(detail=False, methods=['get'], url_path='summary')
     def summary(self, request):
         """
@@ -174,18 +191,21 @@ class TransactionViewSet(viewsets.ModelViewSet):
         })
 
 
+@extend_schema_view(
+    list=extend_schema(summary='List own budgets'),
+    create=extend_schema(summary='Create a budget'),
+    retrieve=extend_schema(summary='Retrieve a budget'),
+    update=extend_schema(summary='Update a budget'),
+    partial_update=extend_schema(summary='Partially update a budget'),
+    destroy=extend_schema(summary='Delete a budget'),
+)
 class BudgetViewSet(viewsets.ModelViewSet):
-    """
-    GET    /api/budgets/       — list own budgets
-    POST   /api/budgets/       — create a budget
-    GET    /api/budgets/{id}/  — retrieve
-    PATCH  /api/budgets/{id}/  — update
-    DELETE /api/budgets/{id}/  — delete
-    """
     serializer_class = BudgetSerializer
     permission_classes = (permissions.IsAuthenticated,)
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return Budget.objects.none()
         return Budget.objects.filter(user=self.request.user).select_related('currency')
 
     def perform_create(self, serializer):

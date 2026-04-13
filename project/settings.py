@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'rest_framework_simplejwt',
     'rest_framework_simplejwt.token_blacklist',
+    'drf_spectacular',
     'users',
     'core'
 ]
@@ -170,6 +171,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
 }
 
 SIMPLE_JWT = {
@@ -232,3 +234,22 @@ LOGGING = {
 
 # Imports 
 AUTH_USER_MODEL = 'users.User'
+
+
+# Swagger / OpenAPI
+SPECTACULAR_SETTINGS = {
+    'TITLE': 'FinTrack API',
+    'DESCRIPTION': 'REST API for the FinTrack expense tracker. Authenticate using the Authorize button with a Bearer token obtained from /api/auth/login/.',
+    'VERSION': '1.0.0',
+    'SERVE_INCLUDE_SCHEMA': False,
+    'COMPONENT_SPLIT_REQUEST': True,
+    'SECURITY': [{'BearerAuth': []}],
+    'SWAGGER_UI_SETTINGS': {
+        'persistAuthorization': True,
+    },
+    # Both Category.category_type and Transaction.transaction_type share income/expense choices
+    'ENUM_NAME_OVERRIDES': {
+        'TransactionTypeEnum': 'core.models.Transaction.TRANSACTION_TYPE',
+    },
+    'ENUM_GENERATE_CHOICE_DESCRIPTION': False,
+}
