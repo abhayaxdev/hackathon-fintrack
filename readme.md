@@ -60,15 +60,20 @@ python manage.py createsuperuser
 
 The superuser account is used to access the Django admin at `/admin/`.
 
-### 5. Seed default categories
+### 5. Seed default categories and currencies
 
 ```bash
 python manage.py seed_categories
+python manage.py seed_currencies
 ```
 
-Seeds 11 system-wide default expense categories (Food, Transport, Health, etc.)
-that are shared across all users. This command is idempotent — safe to run
-multiple times.
+`seed_categories` seeds 11 system-wide default expense categories (Food,
+Transport, Health, etc.) shared across all users.
+
+`seed_currencies` seeds the three supported currencies: NRS (Nepali Rupee),
+USD (US Dollar), and AUD (Australian Dollar).
+
+Both commands are idempotent — safe to run multiple times.
 
 ### 6. Run the development server
 
@@ -143,6 +148,21 @@ python manage.py seed_categories
 ```
 
 Seeds 11 default system-wide categories. Idempotent.
+
+### `seed_currencies`
+
+```bash
+python manage.py seed_currencies
+```
+
+Seeds the three supported currencies. Idempotent — also updates `name`/`symbol`
+on existing records if they differ from the canonical values.
+
+| Code | Name | Symbol |
+|---|---|---|
+| `NRS` | Nepali Rupee | ₨ |
+| `USD` | US Dollar | $ |
+| `AUD` | Australian Dollar | A$ |
 
 ### `mark_missed_payments`
 
