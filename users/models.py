@@ -21,7 +21,7 @@ class User(AbstractUser):
     role = models.CharField(max_length=20, choices=ROLE_CHOICES, default='member')
     country = models.ForeignKey(Country, null=True, blank=True, on_delete=models.SET_NULL)
     # optional OneToOne link to Address (created at registration)
-    address = models.OneToOneField('address.Address', null=True, blank=True, on_delete=models.SET_NULL)
+    # address = models.OneToOneField('address.Address', null=True, blank=True, on_delete=models.SET_NULL)
     # Optional phone number for users. Make unique to avoid duplicate accounts
     # tied to the same phone number.
     phone = models.CharField(max_length=32, null=True, blank=True, unique=True)
