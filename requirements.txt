@@ -6,6 +6,7 @@ Django==5.2.10
 
 # DRF
 djangorestframework==3.16.1
+djangorestframework-simplejwt==5.5.1
 
 # Virtual Env
 django-environ==0.12.0
