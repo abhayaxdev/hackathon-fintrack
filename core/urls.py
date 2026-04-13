@@ -1,3 +1,4 @@
+from django.urls import path
 from rest_framework.routers import DefaultRouter
 from .views import (
     CurrencyViewSet,
@@ -6,6 +7,7 @@ from .views import (
     BudgetViewSet,
     RecurringPaymentViewSet,
     PaymentHistoryViewSet,
+    InsightView,
 )
 
 router = DefaultRouter()
@@ -16,4 +18,6 @@ router.register(r'budgets', BudgetViewSet, basename='budget')
 router.register(r'recurring-payments', RecurringPaymentViewSet, basename='recurring-payment')
 router.register(r'payment-history', PaymentHistoryViewSet, basename='payment-history')
 
-urlpatterns = router.urls
+urlpatterns = router.urls + [
+    path('insights/', InsightView.as_view(), name='insights'),
+]

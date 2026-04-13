@@ -24,4 +24,6 @@ django-debug-toolbar==6.2.0
 # Date utilities
 python-dateutil==2.9.0.post0
 
+# Insight Engine — Gemini LLM
+google-generativeai==0.8.3
 

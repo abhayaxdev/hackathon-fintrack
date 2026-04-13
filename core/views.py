@@ -5,6 +5,7 @@ from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
+from rest_framework.views import APIView
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
@@ -17,6 +18,7 @@ from .serializers import (
     RecurringPaymentSerializer,
     PaymentHistorySerializer,
 )
+from .insights.pipeline import run_insight_engine
 # from .notifications import send_payment_reminder
 
 logger = logging.getLogger(__name__)
@@ -347,3 +349,41 @@ class PaymentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
         if recurring_id:
             qs = qs.filter(recurring_payment_id=recurring_id)
         return qs
+
+
+@extend_schema(
+    summary='Monthly spending insight — LLM narrative + per-category analysis',
+    responses={
+        200: {
+            'type': 'object',
+            'properties': {
+                'narrative':     {'type': 'string'},
+                'analysis':      {'type': 'object'},
+                'cached':        {'type': 'boolean'},
+                'used_fallback': {'type': 'boolean'},
+            },
+        }
+    },
+)
+class InsightView(APIView):
+    """
+    GET /api/insights/
+
+    Runs the monthly Insight Engine for the authenticated user.
+
+    Returns:
+      - narrative      : LLM-generated (or fallback) conversational summary
+      - analysis       : structured summary packet (subject/baseline month,
+                         per-category spend + variance) for chart rendering
+      - cached         : whether this response was served from the 24-hour cache
+      - used_fallback  : whether the LLM was unavailable and the generic tip was used
+    """
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get(self, request):
+        result = run_insight_engine(request.user)
+        logger.info(
+            f"InsightView: response served — user='{request.user.username}' (id={request.user.id}) "
+            f"| cached={result['cached']} | used_fallback={result['used_fallback']}"
+        )
+        return Response(result, status=status.HTTP_200_OK)

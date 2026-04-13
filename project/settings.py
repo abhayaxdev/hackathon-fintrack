@@ -236,6 +236,26 @@ LOGGING = {
 AUTH_USER_MODEL = 'users.User'
 
 
+# Cache
+# Using LocMemCache (Django default) for the hackathon MVP.
+# For multi-worker or production deployments, switch to Redis:
+#   pip install django-redis
+#   CACHES = {"default": {"BACKEND": "django_redis.cache.RedisCache", "LOCATION": "redis://127.0.0.1:6379/1"}}
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'fintrack-cache',
+    }
+}
+
+
+# Insight Engine
+INSIGHT_ENGINE = {
+    'api_key': env.str('GEMINI_API_KEY', default=''),
+    'model':   env.str('GEMINI_MODEL', default='gemini-1.5-flash'),
+}
+
+
 # Swagger / OpenAPI
 SPECTACULAR_SETTINGS = {
     'TITLE': 'FinTrack API',
