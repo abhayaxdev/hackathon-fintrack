@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Currency, Category, Transaction, Budget
+from .models import Currency, Category, Transaction, Budget, RecurringPayment, PaymentHistory
 
 
 class CurrencySerializer(serializers.ModelSerializer):
@@ -88,3 +88,68 @@ class BudgetSerializer(serializers.ModelSerializer):
         if start and end and end <= start:
             raise serializers.ValidationError({'end_date': 'end_date must be after start_date.'})
         return data
+
+
+class RecurringPaymentSerializer(serializers.ModelSerializer):
+    # Nested reads
+    category = CategorySerializer(read_only=True)
+    currency = CurrencySerializer(read_only=True)
+
+    # Write via FK ids
+    category_id = serializers.PrimaryKeyRelatedField(
+        queryset=Category.objects.all(),
+        source='category',
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+    currency_id = serializers.PrimaryKeyRelatedField(
+        queryset=Currency.objects.all(),
+        source='currency',
+        write_only=True,
+        required=False,
+        allow_null=True,
+    )
+
+    class Meta:
+        model = RecurringPayment
+        fields = (
+            'id', 'title', 'amount', 'currency', 'currency_id',
+            'category', 'category_id', 'frequency',
+            'start_date', 'next_due_date',
+            'reminder_days_before',
+            'total_installments', 'completed_installments',
+            'is_active', 'created_at',
+        )
+        # These are managed by the system, not user input
+        read_only_fields = ('id', 'next_due_date', 'completed_installments', 'is_active', 'created_at')
+
+    def validate_total_installments(self, value):
+        if value is not None and value < 1:
+            raise serializers.ValidationError('total_installments must be a positive integer.')
+        return value
+
+    def validate_reminder_days_before(self, value):
+        if value < 0:
+            raise serializers.ValidationError('reminder_days_before cannot be negative.')
+        return value
+
+
+class PaymentHistorySerializer(serializers.ModelSerializer):
+    # Surface the parent title for readability in list responses
+    recurring_payment_title = serializers.CharField(
+        source='recurring_payment.title', read_only=True
+    )
+    # amount is not required on write — defaults to parent amount in the viewset
+    amount = serializers.DecimalField(
+        max_digits=10, decimal_places=2, required=False
+    )
+
+    class Meta:
+        model = PaymentHistory
+        fields = (
+            'id', 'recurring_payment', 'recurring_payment_title',
+            'paid_on', 'amount', 'status', 'note',
+        )
+        # All fields are system-managed; direct creation is via mark-paid action only
+        read_only_fields = ('id', 'recurring_payment', 'recurring_payment_title', 'status')

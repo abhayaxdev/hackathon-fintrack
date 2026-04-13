@@ -1,19 +1,23 @@
 import logging
 
 from django.db.models import Sum, Q
+from django.utils import timezone
 from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from drf_spectacular.utils import extend_schema, extend_schema_view, OpenApiParameter
 from drf_spectacular.types import OpenApiTypes
 
-from .models import Currency, Category, Transaction, Budget
+from .models import Currency, Category, Transaction, Budget, RecurringPayment, PaymentHistory
 from .serializers import (
     CurrencySerializer,
     CategorySerializer,
     TransactionSerializer,
     BudgetSerializer,
+    RecurringPaymentSerializer,
+    PaymentHistorySerializer,
 )
+# from .notifications import send_payment_reminder
 
 logger = logging.getLogger(__name__)
 
@@ -223,3 +227,123 @@ class BudgetViewSet(viewsets.ModelViewSet):
             f"{budget.start_date} to {budget.end_date} | "
             f"user='{self.request.user.username}' (id={self.request.user.id})"
         )
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary='List own recurring payments',
+        parameters=[OpenApiParameter('is_active', OpenApiTypes.BOOL, description='Filter by active status')],
+    ),
+    create=extend_schema(summary='Create a recurring payment'),
+    retrieve=extend_schema(summary='Retrieve a recurring payment'),
+    update=extend_schema(summary='Update a recurring payment'),
+    partial_update=extend_schema(summary='Partially update a recurring payment'),
+    destroy=extend_schema(summary='Delete a recurring payment'),
+)
+class RecurringPaymentViewSet(viewsets.ModelViewSet):
+    serializer_class = RecurringPaymentSerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return RecurringPayment.objects.none()
+        qs = RecurringPayment.objects.filter(user=self.request.user).select_related(
+            'category', 'currency'
+        )
+        is_active = self.request.query_params.get('is_active')
+        if is_active is not None:
+            qs = qs.filter(is_active=is_active.lower() == 'true')
+        return qs
+
+    def perform_create(self, serializer):
+        payment = serializer.save(user=self.request.user)
+        logger.info(
+            f"RecurringPayment created: '{payment.title}' | frequency={payment.frequency} "
+            f"| amount={payment.amount} | next_due={payment.next_due_date} "
+            f"| user='{self.request.user.username}' (id={self.request.user.id})"
+        )
+
+    @extend_schema(
+        summary='Mark a recurring payment as paid',
+        request=None,
+        responses={200: RecurringPaymentSerializer},
+    )
+    @action(detail=True, methods=['post'], url_path='mark-paid')
+    def mark_paid(self, request, pk=None):
+        """
+        POST /api/recurring-payments/{id}/mark-paid/
+
+        - Creates a PaymentHistory entry with status='paid'
+        - Increments completed_installments
+        - Advances next_due_date by one frequency period
+        - Auto-creates a Transaction record in the user's history
+        - Triggers auto-deactivation if EMI is complete (via model save())
+        """
+        payment = self.get_object()
+
+        if not payment.is_active:
+            return Response(
+                {'detail': 'This recurring payment is no longer active.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        today = timezone.localdate()
+
+        # Create PaymentHistory entry
+        PaymentHistory.objects.create(
+            recurring_payment=payment,
+            paid_on=today,
+            amount=payment.amount,
+            status='paid',
+        )
+
+        # Auto-create a Transaction so it appears in the user's transaction history
+        Transaction.objects.create(
+            user=request.user,
+            title=payment.title,
+            amount=payment.amount,
+            transaction_type='expense',
+            category=payment.category,
+            currency=payment.currency,
+            date=today,
+            note=f'Auto-created from recurring payment: {payment.title}',
+        )
+
+        # Advance installment count and next due date
+        payment.completed_installments += 1
+        payment.next_due_date = payment._calculate_next_due(payment.next_due_date)
+        payment.save()  # model save() handles auto-deactivation
+
+        logger.info(
+            f"RecurringPayment marked paid: '{payment.title}' (id={payment.id}) "
+            f"| installment {payment.completed_installments}/{payment.total_installments or '∞'} "
+            f"| next_due={payment.next_due_date} "
+            f"| user='{request.user.username}' (id={request.user.id})"
+        )
+
+        serializer = self.get_serializer(payment)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+
+@extend_schema_view(
+    list=extend_schema(
+        summary='List payment history for own recurring payments',
+        parameters=[OpenApiParameter('recurring_payment', OpenApiTypes.INT, description='Filter by recurring payment ID')],
+    ),
+    retrieve=extend_schema(summary='Retrieve a payment history entry'),
+)
+class PaymentHistoryViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = PaymentHistorySerializer
+    permission_classes = (permissions.IsAuthenticated,)
+
+    def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return PaymentHistory.objects.none()
+        qs = PaymentHistory.objects.filter(
+            recurring_payment__user=self.request.user
+        ).select_related('recurring_payment')
+
+        recurring_id = self.request.query_params.get('recurring_payment')
+        if recurring_id:
+            qs = qs.filter(recurring_payment_id=recurring_id)
+        return qs
