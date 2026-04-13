@@ -48,7 +48,9 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'debug_toolbar',
     'corsheaders',
-    'rest_framework'
+    'rest_framework',
+    'users',
+    'core'
 ]
 
 MIDDLEWARE = [
@@ -215,3 +217,7 @@ LOGGING = {
         },
     },
 }
+
+
+# Imports 
+AUTH_USER_MODEL = 'users.User'
